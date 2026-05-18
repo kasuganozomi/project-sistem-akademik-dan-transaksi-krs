@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  MAHASISWA
+  DOSEN
+}
+
+enum Semester {
+  GANJIL
+  GENAP
+}
+
+enum Hari {
+  SENIN
+  SELASA
+  RABU
+  KAMIS
+  JUMAT
+}
+
+enum StatusKrs {
+  DRAFT
+  DIAJUKAN
+  DISETUJUI
+  DITOLAK
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  username     String     @unique @db.VarChar(50)
+  passwordHash String     @map("password_hash") @db.VarChar(255)
+  role         Role
+  mahasiswa    Mahasiswa?
+  dosen        Dosen?
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Dosen {
+  id                 String      @id @default(uuid()) @db.Uuid
+  userId             String?     @unique @map("user_id") @db.Uuid
+  nip                String      @unique @db.VarChar(20)
+  nama               String      @db.VarChar(100)
+  user               User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  mahasiswaBimbingan Mahasiswa[] @relation("DosenPembimbing")
+  kelas              Kelas[]
+  krsApproval        Krs[]       @relation("KrsApprover")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+
+  @@map("dosen")
+}
+
+model Mahasiswa {
+  id            String          @id @default(uuid()) @db.Uuid
+  userId        String?         @unique @map("user_id") @db.Uuid
+  dosenPaId     String?         @map("dosen_pa_id") @db.Uuid
+  nim           String          @unique @db.VarChar(20)
+  nama          String          @db.VarChar(100)
+  angkatan      Int?
+  user          User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  dosenPa       Dosen?          @relation("DosenPembimbing", fields: [dosenPaId], references: [id], onDelete: SetNull)
+  krs           Krs[]
+  rekapSemester RekapSemester[]
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  @@map("mahasiswa")
+}
+
+model TahunAjaran {
+  id            String          @id @default(uuid()) @db.Uuid
+  tahun         String          @db.VarChar(9)
+  semester      Semester
+  isActive      Boolean         @default(false) @map("is_active")
+  kelas         Kelas[]
+  krs           Krs[]
+  rekapSemester RekapSemester[]
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  @@unique([tahun, semester])
+  @@map("tahun_ajaran")
+}
+
+model MataKuliah {
+  id                  String   @id @default(uuid()) @db.Uuid
+  kode                String   @unique @db.VarChar(10)
+  nama                String   @db.VarChar(100)
+  sks                 Int
+  semesterRekomendasi Int?     @map("semester_rekomendasi")
+  kelas               Kelas[]
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("mata_kuliah")
+}
+
+model Jadwal {
+  id         String   @id @default(uuid()) @db.Uuid
+  hari       Hari
+  jamMulai   DateTime @map("jam_mulai") @db.Time
+  jamSelesai DateTime @map("jam_selesai") @db.Time
+  sksAlokasi Int      @map("sks_alokasi")
+  kelas      Kelas[]
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("jadwal")
+}
+
+model Kelas {
+  id            String      @id @default(uuid()) @db.Uuid
+  mataKuliahId  String      @map("mata_kuliah_id") @db.Uuid
+  dosenId       String      @map("dosen_id") @db.Uuid
+  jadwalId      String      @map("jadwal_id") @db.Uuid
+  tahunAjaranId String      @map("tahun_ajaran_id") @db.Uuid
+  kodeKelas     String      @map("kode_kelas") @db.VarChar(5)
+  nomorRuang    String?     @map("nomor_ruang") @db.VarChar(20)
+  kuota         Int         @default(30)
+  mataKuliah    MataKuliah  @relation(fields: [mataKuliahId], references: [id], onDelete: Restrict)
+  dosen         Dosen       @relation(fields: [dosenId], references: [id], onDelete: Restrict)
+  jadwal        Jadwal      @relation(fields: [jadwalId], references: [id], onDelete: Restrict)
+  tahunAjaran   TahunAjaran @relation(fields: [tahunAjaranId], references: [id], onDelete: Restrict)
+  ambilKrs      AmbilKrs[]
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  @@unique([mataKuliahId, tahunAjaranId, kodeKelas])
+  @@map("kelas")
+}
+
+model AturanBatasSks {
+  id        String   @id @default(uuid()) @db.Uuid
+  ipsMin    Decimal  @map("ips_min") @db.Decimal(3, 2)
+  ipsMax    Decimal  @map("ips_max") @db.Decimal(3, 2)
+  maksSks   Int      @map("maks_sks")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("aturan_batas_sks")
+}
+
+model Krs {
+  id               String      @id @default(uuid()) @db.Uuid
+  mahasiswaId      String      @map("mahasiswa_id") @db.Uuid
+  tahunAjaranId    String      @map("tahun_ajaran_id") @db.Uuid
+  status           StatusKrs   @default(DRAFT)
+  totalSks         Int         @default(0) @map("total_sks")
+  dosenApproverId  String?     @map("dosen_approver_id") @db.Uuid
+  tanggalPengajuan DateTime?   @map("tanggal_pengajuan")
+  tanggalApproval  DateTime?   @map("tanggal_approval")
+  catatanDosen     String?     @map("catatan_dosen") @db.Text
+  mahasiswa        Mahasiswa   @relation(fields: [mahasiswaId], references: [id], onDelete: Cascade)
+  tahunAjaran      TahunAjaran @relation(fields: [tahunAjaranId], references: [id], onDelete: Restrict)
+  dosenApprover    Dosen?      @relation("KrsApprover", fields: [dosenApproverId], references: [id], onDelete: SetNull)
+  items            AmbilKrs[]
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  @@unique([mahasiswaId, tahunAjaranId])
+  @@map("krs")
+}
+
+model AmbilKrs {
+  id        String   @id @default(uuid()) @db.Uuid
+  krsId     String   @map("krs_id") @db.Uuid
+  kelasId   String   @map("kelas_id") @db.Uuid
+  krs       Krs      @relation(fields: [krsId], references: [id], onDelete: Cascade)
+  kelas     Kelas    @relation(fields: [kelasId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([krsId, kelasId])
+  @@map("ambil_krs")
+}
+
+model RekapSemester {
+  id            String      @id @default(uuid()) @db.Uuid
+  mahasiswaId   String      @map("mahasiswa_id") @db.Uuid
+  tahunAjaranId String      @map("tahun_ajaran_id") @db.Uuid
+  ips           Decimal     @db.Decimal(3, 2)
+  ipk           Decimal?    @db.Decimal(3, 2)
+  mahasiswa     Mahasiswa   @relation(fields: [mahasiswaId], references: [id], onDelete: Cascade)
+  tahunAjaran   TahunAjaran @relation(fields: [tahunAjaranId], references: [id], onDelete: Restrict)
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  @@unique([mahasiswaId, tahunAjaranId])
+  @@map("rekap_semester")
+}

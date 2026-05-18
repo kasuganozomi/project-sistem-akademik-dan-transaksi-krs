@@ -1,6 +1,17 @@
 # Private agent workspace
 AGENTS.md
 agent_protocol/
+postgree_cred.txt
+backend/ .env
+frontend/ .env
+framework_mastery_log/
+db_krs.sql.txt
+backend/node_modules/
+frontend/node_modules/
+backend/dist/
+frontend/dist/
+
+
 
 # Environment files
 .env
